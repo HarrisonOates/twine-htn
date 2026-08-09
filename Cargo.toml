@@ -1,0 +1,14 @@
+[package]
+name = "twine"
+version = "0.1.0"
+edition = "2021"
+description = "A totally ordered HTN planner that runs in the Rust trait system"
+repository = "https://github.com/HarrisonOates/twine-htn"
+
+[[bin]]
+name = "weave"
+path = "src/bin/weave.rs"
+
+[[bin]]
+name = "twine-gen"
+path = "src/bin/twine-gen.rs"

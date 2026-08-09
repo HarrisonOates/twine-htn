@@ -1,0 +1,3 @@
+[alias]
+weave = ["run", "--quiet", "--bin", "weave", "--"]
+weave-gen = ["run", "--quiet", "--bin", "twine-gen", "--"]

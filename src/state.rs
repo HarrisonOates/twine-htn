@@ -306,3 +306,111 @@ impl<A, B> Unite<Off> for Br<A, B> {
 impl<A: Unite<C>, B: Unite<D>, C, D> Unite<Br<C, D>> for Br<A, B> {
     type Out = Br<A::Out, B::Out>;
 }
+
+// Firing an action
+// ----------------
+//
+// An action's precondition, delete list and add list, merged by the generator into one trie whose
+// leaves say what happens to each fact it mentions. One walk over the state tests the
+// precondition and writes the effects together, so firing costs one goal per trie node the action
+// touches rather than a test and then an update, each with its own bookkeeping: the trait solver
+// keeps every goal it proves, and goals, not types, are what fill its memory.
+
+/// The fact must hold and is left as it is.
+pub struct Need;
+/// The fact must hold and is deleted.
+pub struct NeedDel;
+/// The fact is added (whether or not it held, or is also needed: deletes come first, then adds).
+pub struct Add;
+/// The fact must hold, and stays (deleted and added again, or only needed and added).
+pub struct NeedAdd;
+/// The fact is deleted.
+pub struct Del;
+
+/// The state after an action, or `Blocked` if its precondition fails.
+pub struct Fired<S>(PhantomData<S>);
+pub struct Blocked;
+
+/// The new state, if `Self`, an action's merged trie, can fire in state `S`.
+pub trait Fire<S> {
+    type Out;
+}
+
+impl<S> Fire<S> for Off {
+    type Out = Fired<S>;
+}
+
+impl Fire<On> for Need {
+    type Out = Fired<On>;
+}
+
+impl Fire<Off> for Need {
+    type Out = Blocked;
+}
+
+impl Fire<On> for NeedDel {
+    type Out = Fired<Off>;
+}
+
+impl Fire<Off> for NeedDel {
+    type Out = Blocked;
+}
+
+impl Fire<On> for NeedAdd {
+    type Out = Fired<On>;
+}
+
+impl Fire<Off> for NeedAdd {
+    type Out = Blocked;
+}
+
+impl<S> Fire<S> for Add {
+    type Out = Fired<On>;
+}
+
+impl<S> Fire<S> for Del {
+    type Out = Fired<Off>;
+}
+
+impl<L: Fire<Off>, R> Fire<Off> for Br<L, R>
+where
+    L::Out: FireRight<R, Off>,
+{
+    type Out = <L::Out as FireRight<R, Off>>::Out;
+}
+
+impl<L: Fire<A>, R, A, B> Fire<Br<A, B>> for Br<L, R>
+where
+    L::Out: FireRight<R, B>,
+{
+    type Out = <L::Out as FireRight<R, B>>::Out;
+}
+
+/// With the left half fired, the right half: `R` on state half `B`.
+pub trait FireRight<R, B> {
+    type Out;
+}
+
+impl<R, B> FireRight<R, B> for Blocked {
+    type Out = Blocked;
+}
+
+impl<NL, R: Fire<B>, B> FireRight<R, B> for Fired<NL>
+where
+    R::Out: Rejoin<NL>,
+{
+    type Out = <R::Out as Rejoin<NL>>::Out;
+}
+
+/// Both halves fired: the canonical node over them.
+pub trait Rejoin<NL> {
+    type Out;
+}
+
+impl<NL> Rejoin<NL> for Blocked {
+    type Out = Blocked;
+}
+
+impl<NL: Join<NR>, NR> Rejoin<NL> for Fired<NR> {
+    type Out = Fired<NL::Out>;
+}

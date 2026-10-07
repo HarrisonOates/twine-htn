@@ -2,12 +2,12 @@
 //!
 //! 9 state bits, 13 actions, 19 tasks, 16 methods.
 
-#![allow(clippy::all, dead_code)]
+#![allow(clippy::all, dead_code, unused_imports)]
 
 use twine::bit::{B0, B1};
 use twine::list::{Cons, Nil};
 use twine::search::Problem;
-use twine::state::{Br, Off, On};
+use twine::state::{Add, Br, Del, Need, NeedAdd, NeedDel, Off, On};
 use twine::search::{Alt, Alts, Fin};
 use twine::task::{Comp, Flat, Guard, Id, Pass, Prim, Proj, Sub, Task};
 
@@ -17,67 +17,67 @@ pub const SOURCE: &str = "examples/robot_02_001.sas";
 // __noop
 pub struct T0;
 impl Task for T0 {
-    type Kind = Prim<Id<0>, Off, Off, Off>;
+    type Kind = Prim<Id<0>, Off>;
 }
 // move[c,r1,d01]
 pub struct T1;
 impl Task for T1 {
-    type Kind = Prim<Id<1>, K3, K7, K3>;
+    type Kind = Prim<Id<1>, K5>;
 }
 // move[c,r2,d02]
 pub struct T2;
 impl Task for T2 {
-    type Kind = Prim<Id<2>, K9, K12, K3>;
+    type Kind = Prim<Id<2>, K10>;
 }
 // move[r1,c,d01]
 pub struct T3;
 impl Task for T3 {
-    type Kind = Prim<Id<3>, K7, K3, K7>;
+    type Kind = Prim<Id<3>, K15>;
 }
 // move[r2,c,d02]
 pub struct T4;
 impl Task for T4 {
-    type Kind = Prim<Id<4>, K15, K3, K12>;
+    type Kind = Prim<Id<4>, K18>;
 }
 // open[c,r2,d02]
 pub struct T5;
 impl Task for T5 {
-    type Kind = Prim<Id<5>, K17, K19, K21>;
+    type Kind = Prim<Id<5>, K20>;
 }
 // open[r2,c,d02]
 pub struct T6;
 impl Task for T6 {
-    type Kind = Prim<Id<6>, K23, K19, K21>;
+    type Kind = Prim<Id<6>, K24>;
 }
 // __method_precondition_achieve-goals-pickup_split[r2,o1]
 pub struct T7;
 impl Task for T7 {
-    type Kind = Prim<Id<7>, K26, Off, Off>;
+    type Kind = Prim<Id<7>, K29>;
 }
 // pickup[o1,r2]
 pub struct T8;
 impl Task for T8 {
-    type Kind = Prim<Id<8>, K29, K31, K33>;
+    type Kind = Prim<Id<8>, K34>;
 }
 // pickup[o1,r1]
 pub struct T9;
 impl Task for T9 {
-    type Kind = Prim<Id<9>, K35, K31, K37>;
+    type Kind = Prim<Id<9>, K38>;
 }
 // __method_precondition_release-putdown_abstract_split[r1,o1]
 pub struct T10;
 impl Task for T10 {
-    type Kind = Prim<Id<10>, K7, Off, Off>;
+    type Kind = Prim<Id<10>, K41>;
 }
 // __method_precondition_release-putdown_abstract_base[o1]
 pub struct T11;
 impl Task for T11 {
-    type Kind = Prim<Id<11>, K31, Off, Off>;
+    type Kind = Prim<Id<11>, K43>;
 }
 // putdown[o1,r1]
 pub struct T12;
 impl Task for T12 {
-    type Kind = Prim<Id<12>, K39, K37, K31>;
+    type Kind = Prim<Id<12>, K47>;
 }
 // __top[]
 pub struct A0;
@@ -99,11 +99,11 @@ impl Alts for A2 {
 }
 pub struct A7;
 impl Alts for A7 {
-    type Cell = Alt<Id<7>, Cons<Sub<T16, K21>, Cons<Sub<T14, Off>, Nil>>, A10>;
+    type Cell = Alt<Id<7>, Cons<Sub<T16, K51>, Cons<Sub<T14, Off>, Nil>>, A10>;
 }
 pub struct A10;
 impl Alts for A10 {
-    type Cell = Alt<Id<10>, Cons<Sub<T7, K29>, Cons<Sub<T17, K40>, Cons<Sub<T18, K31>, Nil>>>, Fin>;
+    type Cell = Alt<Id<10>, Cons<Sub<T7, K55>, Cons<Sub<T17, K58>, Cons<Sub<T18, K61>, Nil>>>, Fin>;
 }
 pub struct T14;
 impl Task for T14 {
@@ -112,131 +112,170 @@ impl Task for T14 {
 // move_abstract[]
 pub struct A3;
 impl Alts for A3 {
-    type Cell = Alt<Id<3>, Cons<Sub<T1, K3>, Nil>, A4>;
+    type Cell = Alt<Id<3>, Cons<Sub<T1, K64>, Nil>, A4>;
 }
 pub struct A4;
 impl Alts for A4 {
-    type Cell = Alt<Id<4>, Cons<Sub<T2, K9>, Nil>, A5>;
+    type Cell = Alt<Id<4>, Cons<Sub<T2, K66>, Nil>, A5>;
 }
 pub struct A5;
 impl Alts for A5 {
-    type Cell = Alt<Id<5>, Cons<Sub<T3, K7>, Nil>, A6>;
+    type Cell = Alt<Id<5>, Cons<Sub<T3, K68>, Nil>, A6>;
 }
 pub struct A6;
 impl Alts for A6 {
-    type Cell = Alt<Id<6>, Cons<Sub<T4, K15>, Nil>, Fin>;
+    type Cell = Alt<Id<6>, Cons<Sub<T4, K71>, Nil>, Fin>;
 }
 pub struct T15;
 impl Task for T15 {
-    type Kind = Proj<K44, Flat<A3>>;
+    type Kind = Proj<K75, Flat<A3>>;
 }
 // open_abstract[]
 pub struct A8;
 impl Alts for A8 {
-    type Cell = Alt<Id<8>, Cons<Sub<T5, K17>, Nil>, A9>;
+    type Cell = Alt<Id<8>, Cons<Sub<T5, K77>, Nil>, A9>;
 }
 pub struct A9;
 impl Alts for A9 {
-    type Cell = Alt<Id<9>, Cons<Sub<T6, K23>, Nil>, Fin>;
+    type Cell = Alt<Id<9>, Cons<Sub<T6, K79>, Nil>, Fin>;
 }
 pub struct T16;
 impl Task for T16 {
-    type Kind = Proj<K46, Guard<K21, Flat<A8>>>;
+    type Kind = Proj<K81, Guard<K51, Flat<A8>>>;
 }
 // pickup_abstract[o1]
 pub struct A11;
 impl Alts for A11 {
-    type Cell = Alt<Id<11>, Cons<Sub<T8, K29>, Nil>, A12>;
+    type Cell = Alt<Id<11>, Cons<Sub<T8, K55>, Nil>, A12>;
 }
 pub struct A12;
 impl Alts for A12 {
-    type Cell = Alt<Id<12>, Cons<Sub<T9, K35>, Nil>, Fin>;
+    type Cell = Alt<Id<12>, Cons<Sub<T9, K83>, Nil>, Fin>;
 }
 pub struct T17;
 impl Task for T17 {
-    type Kind = Proj<K49, Guard<K40, Flat<A11>>>;
+    type Kind = Proj<K86, Guard<K58, Flat<A11>>>;
 }
 // release[]
 pub struct A13;
 impl Alts for A13 {
-    type Cell = Alt<Id<13>, Cons<Sub<T11, K39>, Cons<Sub<T10, K39>, Cons<Sub<T12, K39>, Cons<Sub<T14, Off>, Nil>>>>, A14>;
+    type Cell = Alt<Id<13>, Cons<Sub<T11, K88>, Cons<Sub<T10, K88>, Cons<Sub<T12, K88>, Cons<Sub<T14, Off>, Nil>>>>, A14>;
 }
 pub struct A14;
 impl Alts for A14 {
-    type Cell = Alt<Id<14>, Cons<Sub<T15, K31>, Cons<Sub<T18, K31>, Nil>>, A15>;
+    type Cell = Alt<Id<14>, Cons<Sub<T15, K61>, Cons<Sub<T18, K61>, Nil>>, A15>;
 }
 pub struct A15;
 impl Alts for A15 {
-    type Cell = Alt<Id<15>, Cons<Sub<T16, K51>, Cons<Sub<T18, K31>, Nil>>, Fin>;
+    type Cell = Alt<Id<15>, Cons<Sub<T16, K90>, Cons<Sub<T18, K61>, Nil>>, Fin>;
 }
 pub struct T18;
 impl Task for T18 {
-    type Kind = Guard<K31, Comp<A13>>;
+    type Kind = Guard<K61, Comp<A13>>;
 }
 
 pub struct Prob;
 
 impl Problem for Prob {
-    type Init = K54;
-    type Goal = K55;
+    type Init = K93;
+    type Goal = K94;
     type Root = T13;
     type Schedule = Cons<Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B1, Nil>>>>>>>, Cons<Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B1, Nil>>>>>>>>>, Cons<Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B1, Nil>>>>>>>>>>>, Nil>>>;
 }
 
 // Every interior node of every mask, once.
-type K0 = Br<On, Off>;
+type K0 = Br<NeedDel, Off>;
 type K1 = Br<K0, Off>;
-type K2 = Br<K1, Off>;
+type K2 = Br<Off, Add>;
 type K3 = Br<K2, Off>;
-type K4 = Br<Off, On>;
+type K4 = Br<K1, K3>;
 type K5 = Br<K4, Off>;
-type K6 = Br<Off, K5>;
-type K7 = Br<K6, Off>;
-type K8 = Br<K1, K1>;
-type K9 = Br<K8, Off>;
-type K10 = Br<Off, K0>;
-type K11 = Br<Off, K10>;
-type K12 = Br<K11, Off>;
-type K13 = Br<K0, K0>;
-type K14 = Br<Off, K13>;
+type K6 = Br<Need, Off>;
+type K7 = Br<Add, Off>;
+type K8 = Br<K6, K7>;
+type K9 = Br<K1, K8>;
+type K10 = Br<K9, Off>;
+type K11 = Br<K7, Off>;
+type K12 = Br<Off, NeedDel>;
+type K13 = Br<K12, Off>;
+type K14 = Br<K11, K13>;
 type K15 = Br<K14, Off>;
-type K16 = Br<K13, Off>;
-type K17 = Br<K16, Off>;
-type K18 = Br<Off, K1>;
-type K19 = Br<K18, Off>;
-type K20 = Br<K10, Off>;
-type K21 = Br<K20, Off>;
-type K22 = Br<K10, K10>;
-type K23 = Br<K22, Off>;
-type K24 = Br<Off, K4>;
-type K25 = Br<K24, K10>;
-type K26 = Br<K25, Off>;
-type K27 = Br<K4, K4>;
-type K28 = Br<K27, K10>;
+type K16 = Br<K6, K0>;
+type K17 = Br<K11, K16>;
+type K18 = Br<K17, Off>;
+type K19 = Br<K16, K11>;
+type K20 = Br<K19, Off>;
+type K21 = Br<Off, K0>;
+type K22 = Br<K7, K6>;
+type K23 = Br<K21, K22>;
+type K24 = Br<K23, Off>;
+type K25 = Br<Off, Need>;
+type K26 = Br<Off, K25>;
+type K27 = Br<Off, K6>;
+type K28 = Br<K26, K27>;
 type K29 = Br<K28, Off>;
-type K30 = Br<Off, K24>;
-type K31 = Br<K30, Off>;
-type K32 = Br<K27, Off>;
-type K33 = Br<K32, Off>;
-type K34 = Br<K5, K5>;
-type K35 = Br<K34, K2>;
-type K36 = Br<K5, Off>;
-type K37 = Br<K36, K2>;
-type K38 = Br<Off, K27>;
-type K39 = Br<K38, Off>;
-type K40 = Br<K36, Off>;
-type K41 = Br<On, On>;
-type K42 = Br<K41, K0>;
-type K43 = Br<K1, K42>;
-type K44 = Br<K43, Off>;
-type K45 = Br<K13, K13>;
-type K46 = Br<K45, Off>;
-type K47 = Br<K4, K41>;
-type K48 = Br<K27, K47>;
-type K49 = Br<K48, K2>;
-type K50 = Br<K10, K24>;
+type K30 = Br<K12, K12>;
+type K31 = Br<Need, Add>;
+type K32 = Br<Off, K31>;
+type K33 = Br<K30, K32>;
+type K34 = Br<K33, Off>;
+type K35 = Br<K25, K2>;
+type K36 = Br<K13, K35>;
+type K37 = Br<K1, Off>;
+type K38 = Br<K36, K37>;
+type K39 = Br<K25, Off>;
+type K40 = Br<Off, K39>;
+type K41 = Br<K40, Off>;
+type K42 = Br<Off, K26>;
+type K43 = Br<K42, Off>;
+type K44 = Br<K25, K12>;
+type K45 = Br<K3, K44>;
+type K46 = Br<K11, Off>;
+type K47 = Br<K45, K46>;
+type K48 = Br<On, Off>;
+type K49 = Br<Off, K48>;
+type K50 = Br<K49, Off>;
 type K51 = Br<K50, Off>;
-type K52 = Br<K41, K41>;
-type K53 = Br<K52, Off>;
-type K54 = Br<K53, Off>;
-type K55 = Br<Off, K2>;
+type K52 = Br<Off, On>;
+type K53 = Br<K52, K52>;
+type K54 = Br<K53, K49>;
+type K55 = Br<K54, Off>;
+type K56 = Br<K52, Off>;
+type K57 = Br<K56, Off>;
+type K58 = Br<K57, Off>;
+type K59 = Br<Off, K52>;
+type K60 = Br<Off, K59>;
+type K61 = Br<K60, Off>;
+type K62 = Br<K48, Off>;
+type K63 = Br<K62, Off>;
+type K64 = Br<K63, Off>;
+type K65 = Br<K62, K62>;
+type K66 = Br<K65, Off>;
+type K67 = Br<Off, K56>;
+type K68 = Br<K67, Off>;
+type K69 = Br<K48, K48>;
+type K70 = Br<Off, K69>;
+type K71 = Br<K70, Off>;
+type K72 = Br<On, On>;
+type K73 = Br<K72, K48>;
+type K74 = Br<K62, K73>;
+type K75 = Br<K74, Off>;
+type K76 = Br<K69, Off>;
+type K77 = Br<K76, Off>;
+type K78 = Br<K49, K49>;
+type K79 = Br<K78, Off>;
+type K80 = Br<K69, K69>;
+type K81 = Br<K80, Off>;
+type K82 = Br<K56, K56>;
+type K83 = Br<K82, K63>;
+type K84 = Br<K52, K72>;
+type K85 = Br<K53, K84>;
+type K86 = Br<K85, K63>;
+type K87 = Br<Off, K53>;
+type K88 = Br<K87, Off>;
+type K89 = Br<K49, K59>;
+type K90 = Br<K89, Off>;
+type K91 = Br<K72, K72>;
+type K92 = Br<K91, Off>;
+type K93 = Br<K92, Off>;
+type K94 = Br<Off, K63>;

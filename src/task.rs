@@ -8,9 +8,9 @@ pub trait Task {
     type Kind;
 }
 
-/// A primitive task: its index in the grounded model, then its precondition, add and delete
-/// masks.
-pub struct Prim<I, Prec, Add, Del>(PhantomData<(I, Prec, Add, Del)>);
+/// A primitive task: its index in the grounded model, and its precondition, delete list and add
+/// list merged into one trie (see `state::Fire`).
+pub struct Prim<I, Program>(PhantomData<(I, Program)>);
 /// An abstract task on a cycle of the decomposition graph: applying one of its methods spends a
 /// level of the depth bound, which is what stops a recursive decomposition going on for ever.
 pub struct Comp<Ms>(PhantomData<Ms>);

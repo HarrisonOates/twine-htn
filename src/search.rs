@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use crate::bit::{Choose, B0, B1};
 use crate::eval::Eval;
 use crate::list::{Cons, Nil};
-use crate::state::{Apply, Holds, Less, Meet, Member, Unite};
+use crate::state::{Blocked, Fire, Fired, Holds, Less, Meet, Member, Unite};
 use crate::task::{Comp, Flat, Guard, Pass, Prim, Proj, Sub, Task};
 
 /// A grounded totally ordered HTN problem, ready for the trait solver.
@@ -60,11 +60,24 @@ pub trait Expand<St, D> {
     type Out;
 }
 
-impl<I, P, A, X, St, D> Expand<St, D> for Prim<I, P, A, X>
+impl<I, Prog: Fire<St>, St, D> Expand<St, D> for Prim<I, Prog>
 where
-    Fire<I, P, A, X, St>: Eval,
+    Prog::Out: Outcome<I>,
 {
-    type Out = <Fire<I, P, A, X, St> as Eval>::Out;
+    type Out = <Prog::Out as Outcome<I>>::Out;
+}
+
+/// An action's stream: its one outcome, if its precondition held.
+pub trait Outcome<I> {
+    type Out;
+}
+
+impl<I> Outcome<I> for Blocked {
+    type Out = Miss;
+}
+
+impl<I, S> Outcome<I> for Fired<S> {
+    type Out = Hit<S, Do<I>, Dead>;
 }
 
 impl<Ms, St, D: Budget<Ms, St>> Expand<St, D> for Comp<Ms> {
@@ -166,26 +179,6 @@ impl<H, R> Pred for Cons<B1, Cons<H, R>> {
 
 impl<N: Pred> Pred for Cons<B0, N> {
     type Out = Cons<B1, N::Out>;
-}
-
-/// A primitive task with index `T`, precondition `P`, add mask `A` and delete mask `X`.
-pub struct Fire<T, P, A, X, St>(PhantomData<(T, P, A, X, St)>);
-
-impl<T, P, A, X, St> Eval for Fire<T, P, A, X, St>
-where
-    Holds<P, St>: Eval,
-    <Holds<P, St> as Eval>::Out: Choose<Step<T, A, X, St>, Dead>,
-{
-    type Out = <<Holds<P, St> as Eval>::Out as Choose<Step<T, A, X, St>, Dead>>::Out;
-}
-
-pub struct Step<T, A, X, St>(PhantomData<(T, A, X, St)>);
-
-impl<T, A, X, St> Eval for Step<T, A, X, St>
-where
-    Apply<St, A, X>: Eval,
-{
-    type Out = Hit<<Apply<St, A, X> as Eval>::Out, Do<T>, Dead>;
 }
 
 /// An abstract task's methods are a chain of named cells, one marker type per method, so the

@@ -83,12 +83,12 @@ pub fn generate(model: &Model, source: &str, options: &Options) -> Result<String
     )
     .unwrap();
     writeln!(s).unwrap();
-    writeln!(s, "#![allow(clippy::all, dead_code)]").unwrap();
+    writeln!(s, "#![allow(clippy::all, dead_code, unused_imports)]").unwrap();
     writeln!(s).unwrap();
     writeln!(s, "use twine::bit::{{B0, B1}};").unwrap();
     writeln!(s, "use twine::list::{{Cons, Nil}};").unwrap();
     writeln!(s, "use twine::search::Problem;").unwrap();
-    writeln!(s, "use twine::state::{{Br, Off, On}};").unwrap();
+    writeln!(s, "use twine::state::{{Add, Br, Del, Need, NeedAdd, NeedDel, Off, On}};").unwrap();
     writeln!(s, "use twine::search::{{Alt, Alts, Fin}};").unwrap();
     writeln!(s, "use twine::task::{{Comp, Flat, Guard, Id, Pass, Prim, Proj, Sub, Task}};")
         .unwrap();
@@ -102,12 +102,7 @@ pub fn generate(model: &Model, source: &str, options: &Options) -> Result<String
         writeln!(s, "// {}", model.task_names[task]).unwrap();
         let kind = if task < model.num_actions {
             let action = &model.actions[task];
-            format!(
-                "Prim<Id<{task}>, {}, {}, {}>",
-                masks.mask(&action.prec),
-                masks.mask(&action.add),
-                masks.mask(&action.del)
-            )
+            format!("Prim<Id<{task}>, {}>", masks.program(&action.prec, &action.add, &action.del))
         } else {
             // One marker per method, each naming the next to try.
             let methods = &order[task];
@@ -198,21 +193,47 @@ impl Masks {
 
     /// The canonical trie, padded to a power of two, that has exactly `facts` set.
     fn mask(&mut self, facts: &[u32]) -> String {
-        let mut sorted = facts.to_vec();
-        sorted.sort_unstable();
-        sorted.dedup();
-        self.trie(&sorted, 0, self.height)
+        let leaves: Vec<(u32, &str)> = facts.iter().map(|&f| (f, "On")).collect();
+        self.labelled(leaves)
     }
 
-    fn trie(&mut self, facts: &[u32], lo: usize, height: usize) -> String {
+    /// An action's precondition, delete list and add list as one trie, each fact it mentions a
+    /// leaf saying what happens to it (`state::Fire`).
+    fn program(&mut self, pre: &[u32], add: &[u32], del: &[u32]) -> String {
+        let mut facts: Vec<u32> = pre.iter().chain(add).chain(del).copied().collect();
+        facts.sort_unstable();
+        facts.dedup();
+        let leaves = facts
+            .into_iter()
+            .map(|f| {
+                let label = match (pre.contains(&f), add.contains(&f), del.contains(&f)) {
+                    (true, true, _) => "NeedAdd",
+                    (false, true, _) => "Add",
+                    (true, false, true) => "NeedDel",
+                    (false, false, true) => "Del",
+                    _ => "Need",
+                };
+                (f, label)
+            })
+            .collect();
+        self.labelled(leaves)
+    }
+
+    fn labelled(&mut self, mut leaves: Vec<(u32, &str)>) -> String {
+        leaves.sort_unstable();
+        leaves.dedup_by_key(|l| l.0);
+        self.trie(&leaves, 0, self.height)
+    }
+
+    fn trie(&mut self, facts: &[(u32, &str)], lo: usize, height: usize) -> String {
         if facts.is_empty() {
             return "Off".into();
         }
         if height == 0 {
-            return "On".into();
+            return facts[0].1.into();
         }
         let mid = lo + (1 << (height - 1));
-        let split = facts.partition_point(|&f| (f as usize) < mid);
+        let split = facts.partition_point(|&(f, _)| (f as usize) < mid);
         let l = self.trie(&facts[..split], lo, height - 1);
         let r = self.trie(&facts[split..], mid, height - 1);
         let next = self.names.len();

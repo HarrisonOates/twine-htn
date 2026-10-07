@@ -9,7 +9,7 @@ use twine::list::{Cons, Nil};
 use twine::search::Problem;
 use twine::state::{Br, Off, On};
 use twine::search::{Alt, Alts, Fin};
-use twine::task::{Comp, Flat, Id, Pass, Prim, Task};
+use twine::task::{Comp, Flat, Guard, Id, Pass, Prim, Proj, Sub, Task};
 
 /// The grounded model, read back at run time for names and to check the plan.
 pub const SOURCE: &str = "examples/robot_02_001.sas";
@@ -82,7 +82,7 @@ impl Task for T12 {
 // __top[]
 pub struct A0;
 impl Alts for A0 {
-    type Cell = Alt<Id<0>, Cons<T14, Nil>, Fin>;
+    type Cell = Alt<Id<0>, Cons<Sub<T14, Off>, Nil>, Fin>;
 }
 pub struct T13;
 impl Task for T13 {
@@ -91,19 +91,19 @@ impl Task for T13 {
 // achieve-goals[]
 pub struct A1;
 impl Alts for A1 {
-    type Cell = Alt<Id<1>, Cons<T0, Nil>, A2>;
+    type Cell = Alt<Id<1>, Cons<Sub<T0, Off>, Nil>, A2>;
 }
 pub struct A2;
 impl Alts for A2 {
-    type Cell = Alt<Id<2>, Cons<T15, Cons<T14, Nil>>, A7>;
+    type Cell = Alt<Id<2>, Cons<Sub<T15, Off>, Cons<Sub<T14, Off>, Nil>>, A7>;
 }
 pub struct A7;
 impl Alts for A7 {
-    type Cell = Alt<Id<7>, Cons<T16, Cons<T14, Nil>>, A10>;
+    type Cell = Alt<Id<7>, Cons<Sub<T16, K21>, Cons<Sub<T14, Off>, Nil>>, A10>;
 }
 pub struct A10;
 impl Alts for A10 {
-    type Cell = Alt<Id<10>, Cons<T7, Cons<T17, Cons<T18, Nil>>>, Fin>;
+    type Cell = Alt<Id<10>, Cons<Sub<T7, K29>, Cons<Sub<T17, K40>, Cons<Sub<T18, K31>, Nil>>>, Fin>;
 }
 pub struct T14;
 impl Task for T14 {
@@ -112,73 +112,73 @@ impl Task for T14 {
 // move_abstract[]
 pub struct A3;
 impl Alts for A3 {
-    type Cell = Alt<Id<3>, Cons<T1, Nil>, A4>;
+    type Cell = Alt<Id<3>, Cons<Sub<T1, K3>, Nil>, A4>;
 }
 pub struct A4;
 impl Alts for A4 {
-    type Cell = Alt<Id<4>, Cons<T2, Nil>, A5>;
+    type Cell = Alt<Id<4>, Cons<Sub<T2, K9>, Nil>, A5>;
 }
 pub struct A5;
 impl Alts for A5 {
-    type Cell = Alt<Id<5>, Cons<T3, Nil>, A6>;
+    type Cell = Alt<Id<5>, Cons<Sub<T3, K7>, Nil>, A6>;
 }
 pub struct A6;
 impl Alts for A6 {
-    type Cell = Alt<Id<6>, Cons<T4, Nil>, Fin>;
+    type Cell = Alt<Id<6>, Cons<Sub<T4, K15>, Nil>, Fin>;
 }
 pub struct T15;
 impl Task for T15 {
-    type Kind = Flat<A3>;
+    type Kind = Proj<K44, Flat<A3>>;
 }
 // open_abstract[]
 pub struct A8;
 impl Alts for A8 {
-    type Cell = Alt<Id<8>, Cons<T5, Nil>, A9>;
+    type Cell = Alt<Id<8>, Cons<Sub<T5, K17>, Nil>, A9>;
 }
 pub struct A9;
 impl Alts for A9 {
-    type Cell = Alt<Id<9>, Cons<T6, Nil>, Fin>;
+    type Cell = Alt<Id<9>, Cons<Sub<T6, K23>, Nil>, Fin>;
 }
 pub struct T16;
 impl Task for T16 {
-    type Kind = Flat<A8>;
+    type Kind = Proj<K46, Guard<K21, Flat<A8>>>;
 }
 // pickup_abstract[o1]
 pub struct A11;
 impl Alts for A11 {
-    type Cell = Alt<Id<11>, Cons<T8, Nil>, A12>;
+    type Cell = Alt<Id<11>, Cons<Sub<T8, K29>, Nil>, A12>;
 }
 pub struct A12;
 impl Alts for A12 {
-    type Cell = Alt<Id<12>, Cons<T9, Nil>, Fin>;
+    type Cell = Alt<Id<12>, Cons<Sub<T9, K35>, Nil>, Fin>;
 }
 pub struct T17;
 impl Task for T17 {
-    type Kind = Flat<A11>;
+    type Kind = Proj<K49, Guard<K40, Flat<A11>>>;
 }
 // release[]
 pub struct A13;
 impl Alts for A13 {
-    type Cell = Alt<Id<13>, Cons<T11, Cons<T10, Cons<T12, Cons<T14, Nil>>>>, A14>;
+    type Cell = Alt<Id<13>, Cons<Sub<T11, K39>, Cons<Sub<T10, K39>, Cons<Sub<T12, K39>, Cons<Sub<T14, Off>, Nil>>>>, A14>;
 }
 pub struct A14;
 impl Alts for A14 {
-    type Cell = Alt<Id<14>, Cons<T15, Cons<T18, Nil>>, A15>;
+    type Cell = Alt<Id<14>, Cons<Sub<T15, K31>, Cons<Sub<T18, K31>, Nil>>, A15>;
 }
 pub struct A15;
 impl Alts for A15 {
-    type Cell = Alt<Id<15>, Cons<T16, Cons<T18, Nil>>, Fin>;
+    type Cell = Alt<Id<15>, Cons<Sub<T16, K51>, Cons<Sub<T18, K31>, Nil>>, Fin>;
 }
 pub struct T18;
 impl Task for T18 {
-    type Kind = Comp<A13>;
+    type Kind = Guard<K31, Comp<A13>>;
 }
 
 pub struct Prob;
 
 impl Problem for Prob {
-    type Init = K43;
-    type Goal = K44;
+    type Init = K54;
+    type Goal = K55;
     type Root = T13;
     type Schedule = Cons<Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B1, Nil>>>>>>>, Cons<Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B1, Nil>>>>>>>>>, Cons<Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B0, Cons<B1, Nil>>>>>>>>>>>, Nil>>>;
 }
@@ -224,8 +224,19 @@ type K36 = Br<K5, Off>;
 type K37 = Br<K36, K2>;
 type K38 = Br<Off, K27>;
 type K39 = Br<K38, Off>;
-type K40 = Br<On, On>;
-type K41 = Br<K40, K40>;
-type K42 = Br<K41, Off>;
-type K43 = Br<K42, Off>;
-type K44 = Br<Off, K2>;
+type K40 = Br<K36, Off>;
+type K41 = Br<On, On>;
+type K42 = Br<K41, K0>;
+type K43 = Br<K1, K42>;
+type K44 = Br<K43, Off>;
+type K45 = Br<K13, K13>;
+type K46 = Br<K45, Off>;
+type K47 = Br<K4, K41>;
+type K48 = Br<K27, K47>;
+type K49 = Br<K48, K2>;
+type K50 = Br<K10, K24>;
+type K51 = Br<K50, Off>;
+type K52 = Br<K41, K41>;
+type K53 = Br<K52, Off>;
+type K54 = Br<K53, Off>;
+type K55 = Br<Off, K2>;

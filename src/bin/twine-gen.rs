@@ -9,6 +9,8 @@ usage: cargo weave-gen <problem.sas> [--out FILE] [--rounds N] [--linear] [--sch
   --rounds N     instead, N bounds 1, 2, 4, ...
   --linear       with --rounds, bounds 1, 2, 3, ...
   --count-all    every abstract task spends depth, not only those on a cycle
+  --no-prune     do not test inferred preconditions
+  --no-project   do not cache tasks under the state restricted to the facts they touch
 
 Rewrites twine/src/problem.rs from a grounded, totally ordered problem. The next build of the
 crate is the search.
@@ -51,6 +53,8 @@ fn main() -> ExitCode {
                 }
             }
             "--count-all" => options.count_all = true,
+            "--no-prune" => options.prune = false,
+            "--no-project" => options.project = false,
             other if other.starts_with('-') => return fail(&format!("unknown argument {other}")),
             other => input = Some(other.into()),
         }

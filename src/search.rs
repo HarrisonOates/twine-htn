@@ -3,8 +3,8 @@ use core::marker::PhantomData;
 use crate::bit::{Choose, B0, B1};
 use crate::eval::Eval;
 use crate::list::{Cons, Nil};
-use crate::state::{Apply, Holds, Member};
-use crate::task::{Comp, Flat, Pass, Prim, Task};
+use crate::state::{Apply, Holds, Less, Meet, Member, Unite};
+use crate::task::{Comp, Flat, Guard, Pass, Prim, Proj, Sub, Task};
 
 /// A grounded totally ordered HTN problem, ready for the trait solver.
 ///
@@ -83,6 +83,55 @@ where
     Dedup<Methods<Ms, St, Nil>, Nil>: Eval,
 {
     type Out = <Dedup<Methods<Ms, St, Nil>, Nil> as Eval>::Out;
+}
+
+impl<P, K, St, D> Expand<St, D> for Guard<P, K>
+where
+    Holds<P, St>: Eval,
+    <Holds<P, St> as Eval>::Out: Choose<Inner<K, St, D>, Dead>,
+{
+    type Out = <<Holds<P, St> as Eval>::Out as Choose<Inner<K, St, D>, Dead>>::Out;
+}
+
+/// A task kind's stream in a state, as a value of its own: the cache key a projected task shares.
+pub struct Inner<K, St, D>(PhantomData<(K, St, D)>);
+
+impl<K: Expand<St, D>, St, D> Eval for Inner<K, St, D> {
+    type Out = K::Out;
+}
+
+impl<R, K, St: Meet<R>, D> Expand<St, D> for Proj<R, K>
+where
+    Inner<K, St::Out, D>: Eval,
+    <Inner<K, St::Out, D> as Eval>::Out: Remerge<St, R>,
+{
+    type Out = <<Inner<K, St::Out, D> as Eval>::Out as Remerge<St, R>>::Out;
+}
+
+/// Puts each outcome of a projected stream back into the full state it started from: the facts
+/// outside `R` as they were, the facts inside as the outcome has them.
+pub trait Remerge<St, R> {
+    type Out;
+}
+
+impl<St, R> Remerge<St, R> for Miss {
+    type Out = Miss;
+}
+
+impl<S, P, More, St: Less<R>, R> Remerge<St, R> for Hit<S, P, More>
+where
+    St::Out: Unite<S>,
+{
+    type Out = Hit<<St::Out as Unite<S>>::Out, P, RemergeMore<More, St, R>>;
+}
+
+pub struct RemergeMore<More, St, R>(PhantomData<(More, St, R)>);
+
+impl<More: Eval, St, R> Eval for RemergeMore<More, St, R>
+where
+    More::Out: Remerge<St, R>,
+{
+    type Out = <More::Out as Remerge<St, R>>::Out;
 }
 
 /// A level of the bound, spent on decomposing a task that is on a cycle.
@@ -222,7 +271,17 @@ impl<St, D> Sequence<St, D> for Nil {
     type Out = Hit<St, Nil, Dead>;
 }
 
-impl<T, Rest: Tail<T, St, D>, St, D> Sequence<St, D> for Cons<T, Rest> {
+impl<T, M, Rest, St, D> Sequence<St, D> for Cons<Sub<T, M>, Rest>
+where
+    Holds<M, St>: Eval,
+    <Holds<M, St> as Eval>::Out: Choose<Tails<T, Rest, St, D>, Dead>,
+{
+    type Out = <<Holds<M, St> as Eval>::Out as Choose<Tails<T, Rest, St, D>, Dead>>::Out;
+}
+
+pub struct Tails<T, Rest, St, D>(PhantomData<(T, Rest, St, D)>);
+
+impl<T, Rest: Tail<T, St, D>, St, D> Eval for Tails<T, Rest, St, D> {
     type Out = Rest::Out;
 }
 

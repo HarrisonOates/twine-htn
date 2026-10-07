@@ -223,3 +223,86 @@ where
 {
     type Out = <S::Out as Choose<Yes, Member<S, T>>>::Out;
 }
+
+// Set operations
+// --------------
+//
+// For projecting a state onto the facts a task can touch and merging the task's outcomes back:
+// each result is canonical, and a subtree one side has as `Off` is not walked.
+
+/// `Self ∩ B`
+pub trait Meet<B> {
+    type Out;
+}
+
+impl<B> Meet<B> for Off {
+    type Out = Off;
+}
+
+impl Meet<On> for On {
+    type Out = On;
+}
+
+impl Meet<Off> for On {
+    type Out = Off;
+}
+
+impl<A, B> Meet<Off> for Br<A, B> {
+    type Out = Off;
+}
+
+impl<A: Meet<C>, B: Meet<D>, C, D> Meet<Br<C, D>> for Br<A, B>
+where
+    A::Out: Join<B::Out>,
+{
+    type Out = <A::Out as Join<B::Out>>::Out;
+}
+
+/// `Self ∖ B`
+pub trait Less<B> {
+    type Out;
+}
+
+impl<B> Less<B> for Off {
+    type Out = Off;
+}
+
+impl Less<On> for On {
+    type Out = Off;
+}
+
+impl Less<Off> for On {
+    type Out = On;
+}
+
+impl<A, B> Less<Off> for Br<A, B> {
+    type Out = Br<A, B>;
+}
+
+impl<A: Less<C>, B: Less<D>, C, D> Less<Br<C, D>> for Br<A, B>
+where
+    A::Out: Join<B::Out>,
+{
+    type Out = <A::Out as Join<B::Out>>::Out;
+}
+
+/// `Self ∪ B`
+pub trait Unite<B> {
+    type Out;
+}
+
+impl<B> Unite<B> for Off {
+    type Out = B;
+}
+
+impl<B> Unite<B> for On {
+    type Out = On;
+}
+
+impl<A, B> Unite<Off> for Br<A, B> {
+    type Out = Br<A, B>;
+}
+
+impl<A: Unite<C>, B: Unite<D>, C, D> Unite<Br<C, D>> for Br<A, B> {
+    type Out = Br<A::Out, B::Out>;
+}

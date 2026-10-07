@@ -11,6 +11,7 @@ pub mod bit;
 pub mod domain;
 pub mod eval;
 pub mod gen;
+pub mod infer;
 pub mod list;
 pub mod plan;
 pub mod reify;

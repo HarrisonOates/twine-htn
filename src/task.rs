@@ -36,3 +36,16 @@ pub trait Ident {
 impl<const N: u32> Ident for Id<N> {
     const ID: u32 = N;
 }
+
+/// A task kind behind a test: `Pre` is the inferred precondition of every refinement, so where it
+/// fails the task has no outcomes, and nothing below it is searched.
+pub struct Guard<Pre, K>(PhantomData<(Pre, K)>);
+
+/// A task kind searched on the state restricted to `Touch`, the facts its refinements can read or
+/// write. Its outcomes depend on nothing else, so the stream is cached under the restricted state
+/// and shared by every state that agrees with it there.
+pub struct Proj<Touch, K>(PhantomData<(Touch, K)>);
+
+/// A method's subtask, with the inferred precondition of the method's remaining subtasks from this
+/// one on: tested before they are searched.
+pub struct Sub<T, Pre>(PhantomData<(T, Pre)>);

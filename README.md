@@ -68,9 +68,11 @@ as the number of states it can end in, not the number of paths there. Without th
 **The state is a sparse binary trie.** A state, a precondition, an add list and a delete list are
 all the same shape: a complete binary trie over the state bits, with every all-zero subtree
 collapsed to `Off`. The collapsed form is canonical, so equality of types is equality of states,
-and every operation stops at the first `Off` in its mask. A precondition test or an update costs
-the bits it mentions times the height of the trie, and the new state shares every untouched
-subtree with the old one.
+and every operation stops at the first `Off` in its mask. An action's precondition, delete list and
+add list are merged into one trie whose leaves say what happens to each fact (`Need`, `NeedDel`,
+`NeedAdd`, `Add`, `Del`), so firing it is a single walk that tests and rewrites together: it costs
+the bits the action mentions times the height of the trie, and the new state shares every
+untouched subtree with the old one.
 
 **The depth bound only where it is needed.** The generator computes the strongly connected
 components of the decomposition graph. A task on a cycle (`Comp`) spends a level of the budget
@@ -84,6 +86,19 @@ default. Depth-first search under a generous bound tends to dive straight down a
 cache makes a bound that is larger than needed cheap; deepening from 1 would exhaust every
 shallow round first. `scripts/ipc.sh` runs a short pass of deepening 1, 2, 4, … before it, because
 that is fastest on easy problems.
+
+**Inferred preconditions prune.** A fact that some later task of a sequence needs, and that
+nothing earlier in the sequence can add, must already hold when the sequence starts. The generator
+computes this for every compound task (over all its refinements, as a fixpoint) and for every tail
+of every method's subtasks, PANDAdealer-style. The search tests a task's (`Guard`) before looking
+inside it, and the rest of a method's (`Sub`) before searching it: a single mask test that can
+skip a whole subtree.
+
+**Tasks are cached under the facts they touch.** A compound task's refinements read and write only
+the facts its reachable actions mention, so its outcomes depend on nothing else. `Proj` caches its
+stream under the state restricted to those facts and merges each outcome back, so states that
+differ only elsewhere share one stream. On Factories `pfile05` this and the pruning together are
+the difference between running out of memory after 953 s and a plan in 119 s.
 
 **Methods are tried cheapest first.** The generator orders each task's methods by the fewest
 actions any decomposition of their subtasks can bottom out in, and drops methods that cannot
@@ -134,11 +149,13 @@ twine reads the `.sas` files that [pandaPIgrounder](https://github.com/panda-pla
 run `pandaPIparser domain.hddl problem.hddl out.htn` and then `pandaPIgrounder out.htn out.sas`.
 `src/sas.rs` is a small positional reader for that format, cut down to what the generator needs.
 
-`cargo weave-gen <problem.sas> [--schedule 64,256,1024] [--rounds N] [--count-all]` writes
+`cargo weave-gen <problem.sas> [--schedule 64,256,1024] [--rounds N] [--count-all] [--no-prune]
+[--no-project]` writes
 `src/problem.rs`: one marker type per task, a chain of cells per task's methods, the shared masks,
 and the `Problem` impl for the type-level search. It refuses partially ordered problems and
 conditional effects. `--rounds N` deepens 1, 2, 4, …; `--count-all` makes every abstract task
-spend depth, not just those on a cycle.
+spend depth, not just those on a cycle; `--no-prune` and `--no-project` turn off the inferred
+preconditions and the projected cache.
 
 `cargo weave --verify FILE` checks a plan against the grounded model the way a verifier does:
 every decomposition legal, the leaves the actions in the order given, executable from the initial
@@ -165,7 +182,8 @@ and finally `pandaPIparser -c` into the IPC format.
 The first three problems of each domain of the IPC 2023 total-order set, run as the competition
 runs them: `scripts/ipc.sh` from HDDL to IPC plan, one problem at a time on one desktop core,
 8 GB and 30 minutes. "Slowest" is wall time for the whole pipeline, parse to verified plan. Every
-plan was checked by `pandaPIparser -v` against the original HDDL.
+plan was checked by `pandaPIparser -v` against the original HDDL. These numbers predate the
+inferred-precondition pruning and the projected cache.
 
 | Domain | Solved | Slowest |
 |---|---|---|

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The full pipeline: parse -> ground -> generate -> compile (this is the search) -> verify.
 #
-#   PARSER=... GROUNDER=... scripts/weave.sh domain.hddl problem.hddl [depth]
+#   PARSER=... GROUNDER=... scripts/weave.sh domain.hddl problem.hddl [twine-gen options...]
 #
 # PARSER and GROUNDER default to pandaPIparser and pandaPIgrounder on PATH. Leaves
 # src/problem.rs pointing at the problem it just planned.
@@ -15,7 +15,7 @@ fi
 
 DOMAIN="$1"
 PROBLEM="$2"
-DEPTH="${3:-20}"
+shift 2
 PARSER="${PARSER:-pandaPIparser}"
 GROUNDER="${GROUNDER:-pandaPIgrounder}"
 
@@ -36,7 +36,7 @@ echo "== ground ==" >&2
 "$GROUNDER" "$work/problem.htn" "$work/problem.sas" >&2
 
 echo "== generate ==" >&2
-cargo weave-gen "$work/problem.sas" --depth "$DEPTH" >&2
+cargo weave-gen "$work/problem.sas" "$@" >&2
 
 echo "== search (rustc) ==" >&2
 cargo weave --save "$work/plan.raw"

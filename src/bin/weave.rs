@@ -3,13 +3,17 @@
 
 #![recursion_limit = "4096"]
 
-use std::path::PathBuf;
+#[rustfmt::skip]
+#[path = "../problem.rs"]
+mod problem;
+
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use twine::domain::Domain;
-use twine::{plan, Prob};
+use twine::plan;
+use twine::sas::Model;
 
-type Woven = twine::search::Trace<Prob>;
+type Woven = twine::search::Trace<problem::Prob>;
 
 const USAGE: &str = "\
 usage: cargo weave [--save FILE] [--verify FILE] [--model]
@@ -47,21 +51,31 @@ fn main() -> ExitCode {
         }
     }
 
+    // The names the plan prints live in the grounded model, not in the compiled-in program.
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join(problem::SOURCE);
+    let model = match twine::sas::from_file(&source) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("weave: {}: {e}", source.display());
+            return ExitCode::FAILURE;
+        }
+    };
+
     if show_model {
         eprintln!(
             "- {} state bits, {} actions, {} tasks, {} methods",
-            Prob::NUM_FACTS,
-            Prob::ACTIONS.len(),
-            Prob::TASKS.len(),
-            Prob::METHODS.len()
+            model.num_state_bits,
+            model.num_actions,
+            model.num_tasks,
+            model.methods.len()
         );
-        eprintln!("- The initial task is \"{}\"", Prob::TASKS[Prob::ROOT as usize]);
-        eprintln!("- The initial state contains {} set bits", Prob::INIT.len());
-        eprintln!("- State-based goal contains {} bits", Prob::GOAL.len());
+        eprintln!("- The initial task is \"{}\"", model.task_names[model.initial_task as usize]);
+        eprintln!("- The initial state contains {} set bits", model.s0.len());
+        eprintln!("- State-based goal contains {} bits", model.goal.len());
     }
 
     if let Some(path) = verify {
-        return match load(&path) {
+        return match load(&model, &path) {
             Ok(length) => {
                 eprintln!("- Read a plan of {length} actions from {}", path.display());
                 eprintln!("- PLAN ACCEPTED");
@@ -76,14 +90,14 @@ fn main() -> ExitCode {
     }
 
     let events = twine::domain::trace::<Woven>();
-    let derivation = match plan::from_trace::<Prob>(&events) {
+    let derivation = match plan::from_trace(&model, &events) {
         Ok(d) => d,
         Err(e) => {
             eprintln!("weave: the compiled-in trace is not a derivation: {e}");
             return ExitCode::FAILURE;
         }
     };
-    let length = match plan::check::<Prob>(&derivation) {
+    let length = match plan::check(&model, &derivation) {
         Ok(length) => length,
         Err(e) => {
             eprintln!("weave: the trait solver returned a plan that does not verify: {e}");
@@ -97,7 +111,7 @@ fn main() -> ExitCode {
         derivation.nodes.len() - length
     );
 
-    let text = plan::format::<Prob>(&derivation);
+    let text = plan::format(&model, &derivation);
     println!("{text}");
 
     if let Some(path) = save {
@@ -110,8 +124,8 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn load(path: &PathBuf) -> Result<usize, String> {
+fn load(model: &Model, path: &Path) -> Result<usize, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let derivation = plan::parse::<Prob>(&text)?;
-    plan::check::<Prob>(&derivation)
+    let derivation = plan::parse(model, &text)?;
+    plan::check(model, &derivation)
 }

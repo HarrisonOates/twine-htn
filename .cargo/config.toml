@@ -1,3 +1,15 @@
 [alias]
 weave = ["run", "--quiet", "--bin", "weave", "--"]
-weave-gen = ["run", "--quiet", "--bin", "twine-gen", "--"]
+weave-gen = ["run", "--quiet", "--release", "--bin", "twine-gen", "--"]
+
+# The search runs in rustc's next-generation trait solver. It caches every goal it proves in one
+# global table, and that table is the memo table the search is built on; the stable solver does
+# not, and on anything but the smallest problem runs out of memory instead.
+[build]
+rustflags = ["-Znext-solver=globally"]
+
+[env]
+# -Z flags on a stable toolchain.
+RUSTC_BOOTSTRAP = "1"
+# The search is deep recursion inside the trait solver; give its thread room.
+RUST_MIN_STACK = "4294967296"

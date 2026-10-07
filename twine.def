@@ -1,0 +1,62 @@
+Bootstrap: docker
+From: debian:bookworm-slim
+
+%help
+    twine: a totally ordered HTN planner that runs inside the Rust trait solver.
+
+        apptainer run twine.sif domain.hddl problem.hddl plan-file
+
+    The plan is found while rustc compiles the problem; see README.md.
+
+%labels
+    Name twine
+    Track total-order, non-optimal
+
+%files
+    Cargo.toml /twine/Cargo.toml
+    Cargo.lock /twine/Cargo.lock
+    rustfmt.toml /twine/rustfmt.toml
+    .cargo /twine/.cargo
+    src /twine/src
+    tests /twine/tests
+    examples /twine/examples
+    scripts /twine/scripts
+
+%post
+    set -eu
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        ca-certificates curl git build-essential cmake flex bison gengetopt zlib1g-dev unzip python3
+    rm -rf /var/lib/apt/lists/*
+
+    # pandaPI: parser and grounder.
+    mkdir -p /panda && cd /panda
+    git clone --depth 1 https://github.com/panda-planner-dev/pandaPIparser.git parser
+    make -C parser -j"$(nproc)"
+    git clone --recursive --depth 1 https://github.com/panda-planner-dev/pandaPIgrounder.git grounder
+    (cd grounder/cpddl && git submodule update --init && make boruvka opts bliss lpsolve && make)
+    make -C grounder/src -j"$(nproc)"
+    cp parser/pandaPIparser grounder/pandaPIgrounder /usr/local/bin/
+
+    # A pinned toolchain: the search depends on how this rustc's trait solver behaves.
+    export RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo
+    curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.0
+    chmod -R a+rX /opt/rustup /opt/cargo
+
+    # Build everything that does not depend on the problem, with exactly the flags the run uses,
+    # so at run time cargo only compiles the weave binary (the search).
+    cd /twine
+    export PATH=/opt/cargo/bin:$PATH
+    export CARGO_INCREMENTAL=0
+    cargo build --release --bin twine-gen
+    cargo build --lib
+    chmod -R a+rX /twine
+    chmod +x /twine/scripts/ipc.sh
+
+%environment
+    export RUSTUP_HOME=/opt/rustup
+    export PATH=/opt/cargo/bin:/usr/local/bin:$PATH
+    export TWINE=/twine
+
+%runscript
+    exec /twine/scripts/ipc.sh "$@"

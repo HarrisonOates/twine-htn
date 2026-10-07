@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use crate::domain::{Domain, Event};
+use crate::domain::Event;
+use crate::sas::Model;
 
 /// A decomposition tree. Node indices are assigned in preorder, which for a totally ordered
 /// problem means the leaves in index order are the plan in execution order.
@@ -28,17 +29,18 @@ impl Derivation {
     }
 }
 
-pub fn from_trace<D: Domain>(events: &[Event]) -> Result<Derivation, String> {
+pub fn from_trace(m: &Model, events: &[Event]) -> Result<Derivation, String> {
     let mut nodes = Vec::new();
     let mut cursor = 0;
-    let root = grow::<D>(events, &mut cursor, D::ROOT, &mut nodes)?;
+    let root = grow(m, events, &mut cursor, m.initial_task, &mut nodes)?;
     if cursor != events.len() {
         return Err(format!("{} trailing trace events", events.len() - cursor));
     }
     Ok(Derivation { nodes, root })
 }
 
-fn grow<D: Domain>(
+fn grow(
+    m: &Model,
     events: &[Event],
     cursor: &mut usize,
     task: u32,
@@ -56,7 +58,7 @@ fn grow<D: Domain>(
         }
         Event::Method(method) => {
             let info =
-                D::METHODS.get(method as usize).ok_or_else(|| format!("no method {method}"))?;
+                m.methods.get(method as usize).ok_or_else(|| format!("no method {method}"))?;
             if info.task != task {
                 return Err(format!(
                     "method {} decomposes task {}, not {task}",
@@ -65,8 +67,8 @@ fn grow<D: Domain>(
             }
             nodes.push(Node { task, method: Some(method), children: Vec::new() });
             let mut children = Vec::with_capacity(info.subtasks.len());
-            for &subtask in info.subtasks {
-                children.push(grow::<D>(events, cursor, subtask, nodes)?);
+            for &subtask in &info.subtasks {
+                children.push(grow(m, events, cursor, subtask, nodes)?);
             }
             nodes[id].children = children;
         }
@@ -76,10 +78,10 @@ fn grow<D: Domain>(
 
 /// The IPC plan format `pandaPIparser -c` reads: the actions in execution order, the root, then
 /// one line per decomposition naming its children.
-pub fn format<D: Domain>(derivation: &Derivation) -> String {
+pub fn format(m: &Model, derivation: &Derivation) -> String {
     let mut text = String::from("==>\n");
     for (id, task) in derivation.leaves() {
-        writeln!(text, "{id} {}", D::TASKS[task as usize]).unwrap();
+        writeln!(text, "{id} {}", m.task_names[task as usize]).unwrap();
     }
     writeln!(text, "root {}", derivation.root).unwrap();
     for (id, node) in derivation.nodes.iter().enumerate() {
@@ -87,8 +89,7 @@ pub fn format<D: Domain>(derivation: &Derivation) -> String {
         write!(
             text,
             "{id} {} -> {}",
-            D::TASKS[node.task as usize],
-            D::METHODS[method as usize].name
+            m.task_names[node.task as usize], m.methods[method as usize].name
         )
         .unwrap();
         for child in &node.children {
@@ -108,7 +109,7 @@ struct Raw {
     children: Vec<u64>,
 }
 
-fn resolve<D: Domain>(raw: &HashMap<u64, Raw>, id: u64, node: &Raw) -> Result<u32, String> {
+fn resolve(m: &Model, raw: &HashMap<u64, Raw>, id: u64, node: &Raw) -> Result<u32, String> {
     let candidates = node.methods.as_ref().expect("only called on decompositions");
     let mut children = Vec::with_capacity(node.children.len());
     for child in &node.children {
@@ -117,20 +118,20 @@ fn resolve<D: Domain>(raw: &HashMap<u64, Raw>, id: u64, node: &Raw) -> Result<u3
     candidates
         .iter()
         .copied()
-        .find(|&m| {
-            let info = &D::METHODS[m as usize];
+        .find(|&method| {
+            let info = &m.methods[method as usize];
             info.task == node.task && info.subtasks == children.as_slice()
         })
         .ok_or_else(|| {
             format!(
                 "node {id} applies {}, which does not decompose {} into those children",
-                D::METHODS[candidates[0] as usize].name,
-                D::TASKS[node.task as usize]
+                m.methods[candidates[0] as usize].name, m.task_names[node.task as usize]
             )
         })
 }
 
-fn assemble<D: Domain>(
+fn assemble(
+    m: &Model,
     raw: &HashMap<u64, Raw>,
     id: u64,
     expected: u32,
@@ -141,8 +142,7 @@ fn assemble<D: Domain>(
     if node.task != expected {
         return Err(format!(
             "node {id} is {}, but its parent expects {}",
-            D::TASKS[node.task as usize],
-            D::TASKS[expected as usize]
+            m.task_names[node.task as usize], m.task_names[expected as usize]
         ));
     }
     let at = nodes.len();
@@ -152,23 +152,23 @@ fn assemble<D: Domain>(
         return Ok(at);
     }
 
-    let method = resolve::<D>(raw, id, node)?;
-    let info = &D::METHODS[method as usize];
+    let method = resolve(m, raw, id, node)?;
+    let info = &m.methods[method as usize];
     nodes.push(Node { task: node.task, method: Some(method), children: Vec::new() });
     let mut children = Vec::with_capacity(node.children.len());
-    for (&child, &subtask) in node.children.iter().zip(info.subtasks) {
-        children.push(assemble::<D>(raw, child, subtask, nodes, leaves)?);
+    for (&child, &subtask) in node.children.iter().zip(&info.subtasks) {
+        children.push(assemble(m, raw, child, subtask, nodes, leaves)?);
     }
     nodes[at].children = children;
     Ok(at)
 }
 
-pub fn parse<D: Domain>(text: &str) -> Result<Derivation, String> {
+pub fn parse(m: &Model, text: &str) -> Result<Derivation, String> {
     let by_name: HashMap<&str, u32> =
-        D::TASKS.iter().enumerate().map(|(id, name)| (*name, id as u32)).collect();
+        m.task_names.iter().enumerate().map(|(id, name)| (name.as_str(), id as u32)).collect();
     let mut methods: HashMap<&str, Vec<u32>> = HashMap::new();
-    for (id, method) in D::METHODS.iter().enumerate() {
-        methods.entry(method.name).or_default().push(id as u32);
+    for (id, method) in m.methods.iter().enumerate() {
+        methods.entry(method.name.as_str()).or_default().push(id as u32);
     }
 
     let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
@@ -193,7 +193,7 @@ pub fn parse<D: Domain>(text: &str) -> Result<Derivation, String> {
         match rest.split_once(" -> ") {
             None => {
                 let task = *by_name.get(rest).ok_or_else(|| format!("unknown action {rest:?}"))?;
-                if !D::is_action(task) {
+                if !m.is_primitive(task) {
                     return Err(format!("{rest} is not a primitive task"));
                 }
                 raw.insert(id, Raw { task, methods: None, children: Vec::new() });
@@ -216,7 +216,7 @@ pub fn parse<D: Domain>(text: &str) -> Result<Derivation, String> {
     let root = root.ok_or("the plan has no root line")?;
     let mut nodes = Vec::new();
     let mut leaves = Vec::new();
-    let root = assemble::<D>(&raw, root, D::ROOT, &mut nodes, &mut leaves)?;
+    let root = assemble(m, &raw, root, m.initial_task, &mut nodes, &mut leaves)?;
     if leaves != order {
         return Err("the listed actions are not the leaves in execution order".into());
     }
@@ -225,59 +225,62 @@ pub fn parse<D: Domain>(text: &str) -> Result<Derivation, String> {
 
 /// Checks the derivation against the model: every decomposition legal, and the actions it
 /// yields executable from the initial state and reaching the goal.
-pub fn check<D: Domain>(derivation: &Derivation) -> Result<usize, String> {
-    if derivation.nodes[derivation.root].task != D::ROOT {
+pub fn check(m: &Model, derivation: &Derivation) -> Result<usize, String> {
+    if derivation.nodes[derivation.root].task != m.initial_task {
         return Err(format!(
             "the root is {}, not the initial task {}",
-            D::TASKS[derivation.nodes[derivation.root].task as usize],
-            D::TASKS[D::ROOT as usize]
+            m.task_names[derivation.nodes[derivation.root].task as usize],
+            m.task_names[m.initial_task as usize]
         ));
     }
     for (id, node) in derivation.nodes.iter().enumerate() {
         let Some(method) = node.method else {
-            if !D::is_action(node.task) {
+            if !m.is_primitive(node.task) {
                 return Err(format!(
                     "node {id} is the abstract task {} with no method",
-                    D::TASKS[node.task as usize]
+                    m.task_names[node.task as usize]
                 ));
             }
             continue;
         };
-        let info = &D::METHODS[method as usize];
+        let info = &m.methods[method as usize];
         if info.task != node.task || info.subtasks.len() != node.children.len() {
             return Err(format!("node {id} misapplies {}", info.name));
         }
-        for (&child, &subtask) in node.children.iter().zip(info.subtasks) {
+        for (&child, &subtask) in node.children.iter().zip(&info.subtasks) {
             if derivation.nodes[child].task != subtask {
                 return Err(format!("node {id} has the wrong child {child}"));
             }
         }
     }
 
-    let mut state = vec![false; D::NUM_FACTS];
-    for &fact in D::INIT {
+    let mut state = vec![false; m.num_state_bits];
+    for &fact in &m.s0 {
         state[fact as usize] = true;
     }
     let mut length = 0;
     for (id, task) in derivation.leaves() {
-        let action = &D::ACTIONS[task as usize];
+        let action = &m.actions[task as usize];
+        let name = &m.task_names[task as usize];
         if let Some(&fact) = action.prec.iter().find(|&&f| !state[f as usize]) {
             return Err(format!(
                 "action {id} {} needs {}, which does not hold",
-                action.name,
-                D::FACTS[fact as usize]
+                name, m.fact_names[fact as usize]
             ));
         }
-        for &fact in action.del {
+        for &fact in &action.del {
             state[fact as usize] = false;
         }
-        for &fact in action.add {
+        for &fact in &action.add {
             state[fact as usize] = true;
         }
         length += 1;
     }
-    if let Some(&fact) = D::GOAL.iter().find(|&&f| !state[f as usize]) {
-        return Err(format!("the goal fact {} does not hold at the end", D::FACTS[fact as usize]));
+    if let Some(&fact) = m.goal.iter().find(|&&f| !state[f as usize]) {
+        return Err(format!(
+            "the goal fact {} does not hold at the end",
+            m.fact_names[fact as usize]
+        ));
     }
     Ok(length)
 }

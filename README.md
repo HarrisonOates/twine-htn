@@ -169,22 +169,21 @@ plan was checked by `pandaPIparser -v` against the original HDDL.
 
 | Domain | Solved | Slowest |
 |---|---|---|
-| Barman-BDI, Blocksworld-GTOHP, Depots, Logistics-Learned, Minecraft-Regular, Robot, Rover-GTOHP, Satellite-GTOHP | 3 / 3 each | 4 s |
+| Barman-BDI, Blocksworld-GTOHP, Depots, Logistics-Learned, Minecraft-Regular, Robot, Rover-GTOHP, Satellite-GTOHP, Towers, Transport, Woodworking | 3 / 3 each | 4 s |
 | Factories-simple | 3 / 3 | 4 s |
-| Multiarm-Blocksworld | 3 / 3 | 67 s |
+| Multiarm-Blocksworld | 3 / 3 | 66 s |
+| Monroe-Fully-Observable | 3 / 3 | 72 s |
 | Hiking | 3 / 3 | 90 s |
 | Blocksworld-HPDDL | 3 / 3 | 191 s |
+| Snake | 3 / 3 | 564 s |
 | AssemblyHierarchical | 2 / 3 | 15 s |
-| Snake | 2 / 2 run | 38 s |
 | Minecraft-Player | 1 / 3 | 32 s |
-| Monroe-Fully-Observable | 1 / 1 run | 30 s |
-| Monroe-Partially-Observable | 0 / 1 run | — |
+| Monroe-Partially-Observable | 1 / 3 | 306 s |
 | Freecell-Learned | 0 / 3 | — |
 
-That is 42 plans from the runs that finished. Towers, Transport and Woodworking (all solved in
-a few seconds by earlier builds of this engine), Snake `pb-4slots` and three Monroe problems are
-still to be run. The failures are memory: Freecell needs tens of millions of search steps even outside
-the compiler, and the largest Minecraft-Player problem does not get through the grounder.
+That is 55 of 63. The failures are memory: Freecell needs tens of millions of search steps even
+outside the compiler, the largest Minecraft-Player problem does not get through the grounder, and
+the rest run out of their 8 GB inside the trait solver. (Lamps and SharpSAT are not in this set.)
 
 The version of twine before this engine — one search node per type, the trace in every type,
 iterative deepening over all decompositions — solved 6 of the first 18 of these problems, and ran

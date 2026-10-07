@@ -24,7 +24,7 @@ impl Bits {
 
     fn full(n: usize) -> Bits {
         let mut b = Bits(vec![u64::MAX; n.div_ceil(64)]);
-        if n % 64 != 0 {
+        if !n.is_multiple_of(64) {
             *b.0.last_mut().unwrap() = (1u64 << (n % 64)) - 1;
         }
         b

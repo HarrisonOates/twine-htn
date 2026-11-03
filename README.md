@@ -1,29 +1,89 @@
 # twine
 
-A totally ordered HTN planner that runs inside the Rust trait solver. The grounded planning
-problem is a set of marker types; search is impl selection; the plan is an associated type.
-`rustc` does the planning, and the binary in this crate only reads the answer back out and
-prints it.
+**Planning by compilation. By compilation.**
+
+Compilation-based planning translates a planning problem into another formalism and hands it
+to a solver. Often, that solver is not even a compiler. A disappointing commitment to the bit.
+
+twine takes the name literally: compile a totally ordered hierarchical task network (HTN)
+problem into Rust types, then ask Rust to compile them. Type checking evaluates the search;
+the resulting plan is an associated type. The compiler has to find a plan before it can build
+the executable that prints it. The executable's job is to explain why it was allowed to exist.
 
 It plans real benchmarks — the IPC 2023 total-order set — and its plans verify with
-`pandaPIparser`.
+`pandaPIparser`. This has gone somewhat further than the joke required.
+
+## Make the compiler do it
+
+With Rust and Cargo installed, run these from the repository root. The checked-in Robot
+example is ready to go; the parser and grounder are only needed to bring your own HDDL.
 
 ```sh
 cargo weave                                 # print the plan for the compiled-in problem
 cargo weave --save plan.txt                 # save it in the IPC plan format
 cargo weave --verify plan.txt               # read one back and check it
-cargo weave-gen examples/robot_02_001.sas   # point it at another grounded problem
+cargo weave-gen examples/robot_02_001.sas    # regenerate the included problem's types
 ```
 
 Compiling `cargo weave` *is* the search. `cargo weave-gen` only rewrites `src/problem.rs`; the
-planning happens on the next build. It type-checks if and only if the search finds a plan, and
-the plan is read off the type.
+planning happens on the next build. A successful build contains the plan; running it reads the
+answer back out, checks it against the grounded model, and prints it. Subsequent runs do not
+repeat the search. Cargo's build cache is, technically, also a plan cache.
 
 The search needs rustc's next-generation trait solver. `.cargo/config.toml` turns it on
 (`-Znext-solver=globally`, with `RUSTC_BOOTSTRAP=1` so a stable toolchain takes the flag); see
 [why](#why-the-next-solver).
 
-## The encoding
+## How to put a planning problem in a type
+
+An HTN problem describes actions and ways to break larger tasks into smaller ones. twine
+generates marker types for those pieces; trait implementations describe what they do.
+The types carry the planning data in their structure, without constructing values at run time:
+
+| Planning ingredient | Rust encoding |
+|---|---|
+| A grounded task | A marker struct such as `T17`, with a `Task::Kind` associated type. |
+| A state | A binary trie of `Br<Left, Right>`, `On` and `Off`. For two facts, `Br<On, Off>` means the first is true and the second is false. |
+| An action | `Prim<Id<N>, Program>`, where `Program` is a trie encoding the preconditions and effects. Applying it computes a new state type. |
+| A compound task's methods | A chain of named cells containing `Alt<MethodId, Subtasks, Next>`. Subtasks are type-level lists. |
+| A search call | `Run<Task, State, Depth>`, whose `Eval::Out` is a lazy stream of outcomes. The depth budget is a binary numeral made of types, too. |
+| A plan | A tree of `Do<Action>`, `Dec<Method, Plan>` and `Then<Left, Right>`. |
+
+The binary asks for the answer like this:
+
+```rust
+type Woven = twine::search::Trace<problem::Prob>;
+let events = twine::domain::trace::<Woven>();
+```
+
+Resolving `Woven` forces associated-type normalisation through the search until it reaches
+`Found<Plan>` or exhausts the configured depth schedule as `Stuck`. Only `Found` implements
+`Solved`, so bounded failure arrives in the compiler's native planning-report format:
+
+```text
+error[E0277]: the trait bound `Stuck: Solved` is not satisfied
+```
+
+That means no plan was found within the schedule. A timeout, memory limit or compiler recursion
+overflow says nothing about whether a plan exists. Sometimes the fix for a type error really is
+to give the robot more time to think.
+
+## Why the next solver
+
+The next-generation trait solver has a [global cache of goal evaluations](https://rustc-dev-guide.rust-lang.org/solve/caching.html).
+twine arranges its search around repeated task/state/budget computations, so the compiler can
+reuse their results within a compilation. That cache supplies the planner's memo table.
+We have outsourced both the search and the hash table to the build tool.
+
+This matters in practice: on `Blocksworld-HPDDL/pfile_010`, the old solver used 12.7 GB and was
+killed; the next solver found the plan in 20 s using 600 MB. `.cargo/config.toml` also gives
+rustc a 4 GB stack (`RUST_MIN_STACK`); only the pages it touches are allocated. The search runs
+deep inside the solver, occasionally in several senses of the word.
+
+<details>
+<summary>The implementation details, for anyone still on board</summary>
+
+### Teaching trait resolution to search
 
 **Everything is lazy.** Trait resolution has no backtracking of its own — impls may not overlap,
 so the choice of impl is a function of the types. Search is therefore written as an ordinary
@@ -38,9 +98,8 @@ impl<T, E: Eval> Choose<T, E> for B0 { type Out = E::Out; }
 
 `E` is unbounded in the first impl, so the untaken branch is never normalised.
 
-**The cache is the memo table.** The trait solver remembers what every goal normalised to. So
-the search never asks "what should I try next?", only "what are the outcomes of this task from
-this state?", and it gets each answer once. `Run<T, S, D>` is the lazy stream of every distinct
+**The cache is the memo table.** The search asks "what are the outcomes of this task from
+this state?", so repeated calls can reuse the same normalisation results. `Run<T, S, D>` is the lazy stream of every distinct
 state task `T` can end in when started in state `S` with depth budget `D`, each one paired with
 the plan that gets there:
 
@@ -51,7 +110,7 @@ pub struct Miss;                     // no more
 
 Nothing about the caller is in `Run<T, S, D>`. Wherever the search meets the same task in the same
 state with the same budget — in another branch, in a later deepening round, at the other end of a
-cycle — `rustc` reads the stream it already built. Blind depth-first search becomes dynamic
+cycle — `rustc` can reuse the stream it already built. Blind depth-first search becomes dynamic
 programming over (task, state, budget), and nobody had to write a hash table.
 
 **Sequences are binds, methods are concatenations.** A method's subtasks are a stream of streams:
@@ -74,7 +133,7 @@ add list are merged into one trie whose leaves say what happens to each fact (`N
 the bits the action mentions times the height of the trie, and the new state shares every
 untouched subtree with the old one.
 
-**The depth bound only where it is needed.** The generator computes the strongly connected
+**Depth bounds only where they are needed.** The generator computes the strongly connected
 components of the decomposition graph. A task on a cycle (`Comp`) spends a level of the budget
 per decomposition. A task that can reach a cycle but is not on one (`Pass`) passes it on. A task
 with no cycle below it (`Flat`) is searched at budget zero, so its streams are the same types in
@@ -110,14 +169,7 @@ time, in preorder, and turns each marker back into its index in the grounded mod
 `plan::from_trace` rebuilds the derivation from method arities alone, and `plan::format` writes
 the IPC plan that `pandaPIparser -c` reads.
 
-**No plan does not compile.** Only `Found` implements `Solved`, so naming `Trace<Prob>` for a
-problem with no plan within the schedule is a type error:
-
-```
-error[E0277]: the trait bound `Stuck: Solved` is not satisfied
-```
-
-## What makes the trait solver slow
+### What makes the trait solver slow
 
 `rustc` costs about a millisecond per element pulled from a stream, so the encoding is shaped by
 what the solver charges for:
@@ -136,12 +188,7 @@ what the solver charges for:
 - **The names are not compiled in.** `weave` reads the `.sas` file back at run time for names and
   to check its own plan, so the generated program carries only what the search needs.
 
-## Why the next solver
-
-The stable solver has no global cache for these goals. On `Blocksworld-HPDDL/pfile_010` it used
-12.7 GB and was killed; the next solver finds the plan in 20 s using 600 MB. The search also
-recurses deeply inside the solver, so `.cargo/config.toml` gives rustc a 4 GB stack
-(`RUST_MIN_STACK`); only the pages it touches are allocated.
+</details>
 
 ## Getting a problem in
 
@@ -176,6 +223,7 @@ apptainer run twine.sif domain.hddl problem.hddl plan.txt
 `scripts/ipc.sh` is the entry point: parse, ground, then the two-phase portfolio — deepening
 1, 2, 4, … for 30 s, then the default schedule for the rest of the time, each a fresh `rustc` —
 and finally `pandaPIparser -c` into the IPC format.
+Our search portfolio is two attempts to get the same binary to compile.
 
 ## What it can do
 
@@ -209,8 +257,8 @@ out of memory or out of a 5-minute limit on the rest.
 
 Blind search optimises nothing: there is no heuristic beyond the method order, and the plans are
 often long, since a generous depth bound lets depth-first search wander before it finds the way
-out. If you want a planner that is actually good, this is not it; this is the one where the
-compiler does the searching.
+out. Plan quality is not a concern of the track, which is fortunate. twine's main contribution
+to planning is a much more literal interpretation of the word "compilation".
 
 `examples/robot_02_001.sas` is the grounder's output for `Robot/pfile_02_001` of the
 [IPC 2023](https://github.com/ipc2023-htn) total-order set, checked in so the generator can be run
